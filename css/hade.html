@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>مقارنة: BFS vs DFS vs A*</title>
+<style>
+:root{
+  --bg:#0b1020;
+  --panel:#07102a;
+  --neon1:#00e5ff;
+  --neon2:#7c4dff;
+  --accent:#00e5ff;
+  --muted:#98a0b3;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  margin:16px; font-family: "Segoe UI", Arial; direction:rtl;
+  background: var(--bg);
+  color:#e6eef8;
+}
+
+.header{
+  display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px;
+}
+.title{
+  display:flex; gap:12px; align-items:center;
+}
+.logo{
+  width:56px;height:56px;border-radius:12px;
+  background: linear-gradient(135deg,var(--neon2),var(--neon1));
+  display:flex;align-items:center;justify-content:center;font-weight:700;color:#041025;
+  font-size:20px;
+}
+h1{font-size:18px;margin:0}
+.controls-top{
+  background:var(--panel);
+  padding:12px; border-radius:10px; display:flex; gap:12px; align-items:center;
+  flex-wrap: wrap;
+}
+
+.main{
+  display:flex; gap:16px; margin-top:14px;
+}
+.left{
+  flex:1; display:flex; flex-direction:column; gap:12px;
+}
+.right{
+  width:420px; display:flex; flex-direction:column; gap:12px;
+}
+
+.grid-wrap{
+  background:var(--panel);
+  border-radius:10px; padding:12px;
+  display:flex; gap:12px; align-items:flex-start; overflow:auto;
+}
+.panel{
+  background: var(--panel);
+  border-radius:8px; padding:10px; width:calc(33.333% - 8px);
+  border: 1px solid rgba(124,77,255,0.08);
+}
+.panel h3{ margin:0 0 8px 0; font-size:14px; color:var(--neon1);}
+.grid{
+  display:grid; padding:6px; border-radius:6px;
+  overflow:auto;
+}
+.cell{ display:flex; align-items:center; justify-content:center; font-weight:700; color:#041025; border-radius:4px; user-select:none; cursor:pointer;}
+.cell.empty{ background:rgba(255,255,255,0.02); }
+.cell.wall{ background:#071827; color:#9fb3c8; }
+.cell.start{ background:#00ff9d; color:#02120a;}
+.cell.goal{ background:#ff5c9e; color:#1f0212;}
+.cell.treasure{ background:#ffd166; color:#26210a;}
+.cell.danger{ background:#ff5c5c; color:#1f0202;}
+.cell.visited{ background:rgba(0,229,255,0.14); color:#eaf8ff; }
+.cell.path{ outline:3px solid rgba(124,77,255,0.9); }
+
+.card{
+  background:var(--panel);
+  padding:10px;border-radius:8px;
+}
+.row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.small{ font-size:13px; color:var(--muted); }
+.kpi{ display:flex; gap:8px; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.kpi strong{ font-size:16px; color:#fff; }
+.btn{ background:linear-gradient(90deg,var(--neon2),var(--neon1)); color:#021025; padding:8px 10px; border-radius:8px; border:none; cursor:pointer; font-weight:700; }
+.btn.ghost{ background:transparent; color:var(--neon1); border:1px solid rgba(124,77,255,0.08); }
+.slider{ width:160px; accent-color: #7c4dff; }
+
+.chart{
+  height:140px; width:100%; display:flex; gap:10px; align-items:end; padding:8px;
+}
+.bar{
+  flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:6px;
+}
+.barrect{ width:60%; background:linear-gradient(180deg,var(--neon1),var(--neon2)); border-radius:6px;}
+.legend{ font-size:12px; color:var(--muted); }
+
+@media(max-width:1100px){
+  .main{ flex-direction:column; }
+  .panel{ width:100%; }
+  .right{ width:100%; }
+  .grid-wrap{ flex-direction:column; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="title">
+    <div class="logo">AI</div>
+    <div>
+      <h1>مقارنة BFS ↔ DFS ↔ A*</h1>
+    </div>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <button id="randomBtn" class="btn">تهيئة عشوائية</button>
+    <button id="resetBtn" class="btn ghost">إعادة تعيين</button>
+  </div>
+</div>
+
+<div class="controls-top">
+  <div class="row">
+    <div class="small">صفوف</div>
+    <input id="rows" type="range" min="8" max="20" value="12" class="slider">
+    <div id="rowsVal" class="small">12</div>
+  </div>
+  <div class="row">
+    <div class="small">أعمدة</div>
+    <input id="cols" type="range" min="8" max="20" value="16" class="slider">
+    <div id="colsVal" class="small">16</div>
+  </div>
+  <div class="row">
+    <div class="small">سرعة (ms)</div>
+    <input id="speed" type="range" min="10" max="600" value="100" class="slider">
+    <div id="speedVal" class="small">100</div>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <div class="small">أداة رسم:</div>
+    <select id="tool">
+      <option value="#">جدار</option>
+      <option value=".">طريق</option>
+      <option value="S">بداية</option>
+      <option value="G">هدف</option>
+      <option value="X">خطر</option>
+    </select>
+  </div>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="grid-wrap">
+      <div class="panel">
+        <h3>BFS <span id="bfsState">جاهز</span></h3>
+        <div id="gridBFS" class="grid"></div>
+        <div style="margin-top:8px; display:flex; gap:6px;">
+          <button id="runBFS" class="btn">تشغيل</button>
+          <button id="stepBFS" class="btn ghost">خطوة</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>DFS <span id="dfsState">جاهز</span></h3>
+        <div id="gridDFS" class="grid"></div>
+        <div style="margin-top:8px; display:flex; gap:6px;">
+          <button id="runDFS" class="btn">تشغيل</button>
+          <button id="stepDFS" class="btn ghost">خطوة</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>A* <span id="astarState">جاهز</span></h3>
+        <div id="gridAstar" class="grid"></div>
+        <div style="margin-top:8px; display:flex; gap:6px;">
+          <button id="runAstar" class="btn">تشغيل</button>
+          <button id="stepAstar" class="btn ghost">خطوة</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="card">
+      <div class="kpi"><div class="small">العقد الموسعة</div><strong id="kpiExpanded">-</strong></div>
+      <div class="kpi"><div class="small">طول المسار</div><strong id="kpiPath">-</strong></div>
+    </div>
+    <div class="card">
+      <h4>إعدادات A*</h4>
+      <div class="row">
+        <div class="small">Heuristic:</div>
+        <select id="heuristicType">
+          <option value="manhattan">مانهاتن</option>
+          <option value="euclidean">إقليدس</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="small">الحركة القطرية:</div>
+        <input type="checkbox" id="diagonal" checked>
+      </div>
+    </div>
+    <div class="card">
+      <h4>ملخص النتائج</h4>
+      <div id="summary" class="small">لا توجد نتائج بعد التشغيل.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // العناصر
+    const rowsSlider = document.getElementById('rows');
+    const colsSlider = document.getElementById('cols');
+    const speedSlider = document.getElementById('speed');
+    const rowsVal = document.getElementById('rowsVal');
+    const colsVal = document.getElementById('colsVal');
+    const speedVal = document.getElementById('speedVal');
+    
+    const gridBFS = document.getElementById('gridBFS');
+    const gridDFS = document.getElementById('gridDFS');
+    const gridAstar = document.getElementById('gridAstar');
+    
+    const runBFS = document.getElementById('runBFS');
+    const stepBFS = document.getElementById('stepBFS');
+    const runDFS = document.getElementById('runDFS');
+    const stepDFS = document.getElementById('stepDFS');
+    const runAstar = document.getElementById('runAstar');
+    const stepAstar = document.getElementById('stepAstar');
+    
+    const randomBtn = document.getElementById('randomBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const toolSel = document.getElementById('tool');
+    
+    const bfsState = document.getElementById('bfsState');
+    const dfsState = document.getElementById('dfsState');
+    const astarState = document.getElementById('astarState');
+    
+    const kpiExpanded = document.getElementById('kpiExpanded');
+    const kpiPath = document.getElementById('kpiPath');
+    const summary = document.getElementById('summary');
+    
+    const heuristicType = document.getElementById('heuristicType');
+    const diagonalCheck = document.getElementById('diagonal');
+
+    // المتغيرات
+    let ROWS = parseInt(rowsSlider.value);
+    let COLS = parseInt(colsSlider.value);
+    let CELL = 20;
+    let SPEED = parseInt(speedSlider.value);
+    let baseMap = [];
+
+    // المستكشفون
+    const explorers = {
+        BFS: null,
+        DFS: null,
+        ASTAR: null
+    };
+
+    // التحكم
+    const controllers = {
+        BFS: { running: false },
+        DFS: { running: false },
+        ASTAR: { running: false }
+    };
+
+    // النتائج
+    const results = {
+        BFS: null,
+        DFS: null,
+        ASTAR: null
+    };
+
+    // الدوال المساعدة
+    function posKey(r, c) { return r + ',' + c; }
+    function inBounds(r, c) { return r >= 0 && r < ROWS && c >= 0 && c < COLS; }
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    // إنشاء الخريطة
+    function initBaseMap() {
+        baseMap = [];
+        for (let r = 0; r < ROWS; r++) {
+            baseMap[r] = [];
+            for (let c = 0; c < COLS; c++) {
+                baseMap[r][c] = '.';
+            }
+        }
+        baseMap[0][0] = 'S';
+        baseMap[ROWS-1][COLS-1] = 'G';
+        placeRandomWalls();
+    }
+
+    function placeRandomWalls() {
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (baseMap[r][c] === '.' && Math.random() < 0.2) {
+                    baseMap[r][c] = '#';
+                }
+            }
+        }
+    }
+
+    function cloneBase() {
+        return baseMap.map(row => [...row]);
+    }
+
+    // بناء الشبكات
+    function buildGridContainers() {
+        const grids = [gridBFS, gridDFS, gridAstar];
+        grids.forEach(grid => {
+            grid.style.gridTemplateColumns = `repeat(${COLS}, ${CELL}px)`;
+            grid.innerHTML = '';
+        });
+
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const ch = baseMap[r][c];
+                createCell(gridBFS, r, c, ch);
+                createCell(gridDFS, r, c, ch);
+                createCell(gridAstar, r, c, ch);
+            }
+        }
+    }
+
+    function createCell(container, r, c, ch) {
+        const cell = document.createElement('div');
+        cell.className = 'cell ' + getCellClass(ch);
+        cell.style.width = CELL + 'px';
+        cell.style.height = CELL + 'px';
+        cell.onclick = () => onCellClick(r, c);
+        container.appendChild(cell);
+    }
+
+    function getCellClass(ch) {
+        switch (ch) {
+            case '#': return 'wall';
+            case 'S': return 'start';
+            case 'G': return 'goal';
+            case 'X': return 'danger';
+            default: return 'empty';
+        }
+    }
+
+    function onCellClick(r, c) {
+        const tool = toolSel.value;
+        if (tool === 'S') {
+            // إزالة البداية القديمة
+            for (let i = 0; i < ROWS; i++) {
+                for (let j = 0; j < COLS; j++) {
+                    if (baseMap[i][j] === 'S') baseMap[i][j] = '.';
+                }
+            }
+            baseMap[r][c] = 'S';
+        } else if (tool === 'G') {
+            baseMap[r][c] = 'G';
+        } else {
+            baseMap[r][c] = tool;
+        }
+        rebuildAllGrids();
+    }
+
+    function rebuildAllGrids() {
+        buildGridContainers();
+        resetExplorers();
+    }
+
+    // تهيئة المستكشفين
+    function initExplorers() {
+        explorers.BFS = createExplorer('BFS');
+        explorers.DFS = createExplorer('DFS');
+        explorers.ASTAR = createExplorer('ASTAR');
+        
+        bfsState.textContent = 'جاهز';
+        dfsState.textContent = 'جاهز';
+        astarState.textContent = 'جاهز';
+        updateStats();
+    }
+
+    function createExplorer(type) {
+        const map = cloneBase();
+        let start = null;
+        let goal = null;
+
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (map[r][c] === 'S') start = [r, c];
+                if (map[r][c] === 'G') goal = [r, c];
+            }
+        }
+
+        const visited = Array(ROWS).fill().map(() => Array(COLS).fill(false));
+        const parent = {};
+        const structure = type === 'BFS' ? { queue: [] } : 
+                         type === 'DFS' ? { stack: [] } : { open: [] };
+
+        if (start) {
+            parent[posKey(start[0], start[1])] = null;
+            if (type === 'BFS') structure.queue.push(start);
+            if (type === 'DFS') structure.stack.push(start);
+            if (type === 'ASTAR') {
+                structure.open.push({
+                    pos: start,
+                    g: 0,
+                    f: heuristic(start, goal)
+                });
+            }
+        }
+
+        return {
+            type, map, visited, parent, structure,
+            start, goal, expanded: 0, path: null
+        };
+    }
+
+    function resetExplorers() {
+        controllers.BFS.running = false;
+        controllers.DFS.running = false;
+        controllers.ASTAR.running = false;
+        initExplorers();
+    }
+
+    // الجيران
+    function getNeighbors(r, c, map) {
+        const neighbors = [];
+        const deltas = diagonalCheck.checked ? 
+            [[-1,0], [1,0], [0,-1], [0,1], [-1,-1], [-1,1], [1,-1], [1,1]] :
+            [[-1,0], [1,0], [0,-1], [0,1]];
+        
+        for (const [dr, dc] of deltas) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (inBounds(nr, nc) && map[nr][nc] !== '#') {
+                let cost = 1;
+                if (map[nr][nc] === 'X') cost = 5;
+                if (Math.abs(dr) === 1 && Math.abs(dc) === 1) cost *= 1.4;
+                neighbors.push([nr, nc, cost]);
+            }
+        }
+        return neighbors;
+    }
+
+    // Heuristic
+    function heuristic(a, b, type = heuristicType.value) {
+        const dx = Math.abs(a[0] - b[0]);
+        const dy = Math.abs(a[1] - b[1]);
+        
+        if (type === 'manhattan') return dx + dy;
+        if (type === 'euclidean') return Math.sqrt(dx*dx + dy*dy);
+        return dx + dy;
+    }
+
+    // رسم المستكشف
+    function drawExplorer(type) {
+        const ex = explorers[type];
+        const container = type === 'BFS' ? gridBFS : 
+                         type === 'DFS' ? gridDFS : gridAstar;
+        
+        const children = container.children;
+        let idx = 0;
+        
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const cell = children[idx++];
+                const ch = ex.map[r][c];
+                let className = 'cell ';
+                
+                if (ch === '.' || ch === '*') {
+                    className += ex.visited[r][c] ? 'visited' : 'empty';
+                } else {
+                    className += getCellClass(ch);
+                }
+                
+                cell.className = className;
+                
+                if (ex.path && ex.path.some(p => p[0] === r && p[1] === c)) {
+                    cell.classList.add('path');
+                }
+            }
+        }
+    }
+
+    // خطوات الخوارزميات
+    function bfsStep(ex) {
+        if (!ex.structure.queue.length) return false;
+        
+        const [r, c] = ex.structure.queue.shift();
+        const key = posKey(r, c);
+        
+        if (ex.visited[r][c]) return true;
+        ex.visited[r][c] = true;
+        ex.expanded++;
+        
+        if (r === ex.goal[0] && c === ex.goal[1]) {
+            ex.path = reconstructPath(key, ex.parent);
+            return false;
+        }
+        
+        for (const [nr, nc] of getNeighbors(r, c, ex.map)) {
+            const nk = posKey(nr, nc);
+            if (!ex.parent[nk]) {
+                ex.parent[nk] = key;
+                ex.structure.queue.push([nr, nc]);
+            }
+        }
+        return true;
+    }
+
+    function dfsStep(ex) {
+        if (!ex.structure.stack.length) return false;
+        
+        const [r, c] = ex.structure.stack.pop();
+        const key = posKey(r, c);
+        
+        if (ex.visited[r][c]) return true;
+        ex.visited[r][c] = true;
+        ex.expanded++;
+        
+        if (r === ex.goal[0] && c === ex.goal[1]) {
+            ex.path = reconstructPath(key, ex.parent);
+            return false;
+        }
+        
+        for (const [nr, nc] of getNeighbors(r, c, ex.map)) {
+            const nk = posKey(nr, nc);
+            if (!ex.parent[nk]) {
+                ex.parent[nk] = key;
+                ex.structure.stack.push([nr, nc]);
+            }
+        }
+        return true;
+    }
+
+    function astarStep(ex) {
+        if (!ex.structure.open.length) return false;
+        
+        ex.structure.open.sort((a, b) => a.f - b.f);
+        const node = ex.structure.open.shift();
+        const [r, c] = node.pos;
+        const key = node.key;
+        
+        if (ex.visited[r][c]) return true;
+        ex.visited[r][c] = true;
+        ex.expanded++;
+        
+        if (r === ex.goal[0] && c === ex.goal[1]) {
+            ex.path = reconstructPath(key, ex.parent);
+            return false;
+        }
+        
+        for (const [nr, nc, cost] of getNeighbors(r, c, ex.map)) {
+            const nk = posKey(nr, nc);
+            const tentativeG = node.g + cost;
+            
+            if (!ex.parent[nk] || tentativeG < (ex.gScore?.[nk] || Infinity)) {
+                ex.parent[nk] = key;
+                if (!ex.gScore) ex.gScore = {};
+                ex.gScore[nk] = tentativeG;
+                
+                const h = heuristic([nr, nc], ex.goal);
+                const f = tentativeG + h;
+                
+                ex.structure.open.push({
+                    pos: [nr, nc],
+                    g: tentativeG,
+                    f: f,
+                    key: nk
+                });
+            }
+        }
+        return true;
+    }
+
+    function reconstructPath(endKey, parent) {
+        const path = [];
+        let current = endKey;
+        
+        while (current) {
+            const [r, c] = current.split(',').map(Number);
+            path.push([r, c]);
+            current = parent[current];
+        }
+        
+        return path.reverse();
+    }
+
+    function stepOne(type) {
+        const ex = explorers[type];
+        if (!ex) return false;
+        
+        let continueFlag = false;
+        if (type === 'BFS') continueFlag = bfsStep(ex);
+        if (type === 'DFS') continueFlag = dfsStep(ex);
+        if (type === 'ASTAR') continueFlag = astarStep(ex);
+        
+        drawExplorer(type);
+        updateStats();
+        
+        if (!continueFlag) {
+            finalizeResult(type);
+        }
+        
+        return continueFlag;
+    }
+
+    // التشغيل التلقائي
+    async function autoLoop(type) {
+        const ctrl = controllers[type];
+        if (!ctrl || ctrl.running) return;
+        
+        ctrl.running = true;
+        const stateEl = type === 'BFS' ? bfsState : 
+                       type === 'DFS' ? dfsState : astarState;
+        stateEl.textContent = 'يعمل...';
+        
+        while (ctrl.running) {
+            const shouldContinue = stepOne(type);
+            if (!shouldContinue) {
+                stateEl.textContent = 'انتهى';
+                break;
+            }
+            await sleep(SPEED);
+        }
+        
+        ctrl.running = false;
+    }
+
+    // النتائج
+    function finalizeResult(type) {
+        const ex = explorers[type];
+        if (!ex) return;
+        
+        results[type] = {
+            expanded: ex.expanded,
+            pathLen: ex.path ? ex.path.length - 1 : null
+        };
+        
+        updateStats();
+        updateSummary();
+    }
+
+    function updateStats() {
+        const exB = explorers.BFS;
+        const exD = explorers.DFS;
+        const exA = explorers.ASTAR;
+        
+        const expandedB = exB ? exB.expanded : 0;
+        const expandedD = exD ? exD.expanded : 0;
+        const expandedA = exA ? exA.expanded : 0;
+        
+        const pathB = exB && exB.path ? exB.path.length - 1 : '-';
+        const pathD = exD && exD.path ? exD.path.length - 1 : '-';
+        const pathA = exA && exA.path ? exA.path.length - 1 : '-';
+        
+        kpiExpanded.textContent = `${expandedB} / ${expandedD} / ${expandedA}`;
+        kpiPath.textContent = `${pathB} / ${pathD} / ${pathA}`;
+    }
+
+    function updateSummary() {
+        const rB = results.BFS;
+        const rD = results.DFS;
+        const rA = results.ASTAR;
+        
+        if (!rB && !rD && !rA) {
+            summary.innerText = 'لا توجد نتائج بعد.';
+            return;
+        }
+        
+        const lines = [];
+        if (rB) lines.push(`BFS: ${rB.expanded} عقد، ${rB.pathLen} طول المسار`);
+        if (rD) lines.push(`DFS: ${rD.expanded} عقد، ${rD.pathLen} طول المسار`);
+        if (rA) lines.push(`A*: ${rA.expanded} عقد، ${rA.pathLen} طول المسار`);
+        
+        summary.innerText = lines.join('\n');
+    }
+
+    // الأحداث
+    function setupEventListeners() {
+        runBFS.onclick = () => autoLoop('BFS');
+        stepBFS.onclick = () => stepOne('BFS');
+        
+        runDFS.onclick = () => autoLoop('DFS');
+        stepDFS.onclick = () => stepOne('DFS');
+        
+        runAstar.onclick = () => autoLoop('ASTAR');
+        stepAstar.onclick = () => stepOne('ASTAR');
+        
+        rowsSlider.oninput = () => {
+            rowsVal.textContent = rowsSlider.value;
+            ROWS = parseInt(rowsSlider.value);
+            initBaseMap();
+            buildGridContainers();
+            initExplorers();
+        };
+        
+        colsSlider.oninput = () => {
+            colsVal.textContent = colsSlider.value;
+            COLS = parseInt(colsSlider.value);
+            initBaseMap();
+            buildGridContainers();
+            initExplorers();
+        };
+        
+        speedSlider.oninput = () => {
+            speedVal.textContent = speedSlider.value;
+            SPEED = parseInt(speedSlider.value);
+        };
+        
+        randomBtn.onclick = () => {
+            placeRandomWalls();
+            rebuildAllGrids();
+            initExplorers();
+        };
+        
+        resetBtn.onclick = () => {
+            initBaseMap();
+            rebuildAllGrids();
+            initExplorers();
+        };
+    }
+
+    // التهيئة
+    function init() {
+        setupEventListeners();
+        initBaseMap();
+        buildGridContainers();
+        initExplorers();
+    }
+
+    init();
+});
+</script>
+</body>
+</html>
