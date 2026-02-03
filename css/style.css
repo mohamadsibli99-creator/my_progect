@@ -22,6 +22,7 @@ a {
     text-decoration: none;
     color: #003366;
     font-weight: bold;
+    position: relative;
 }
 
 a:hover {
